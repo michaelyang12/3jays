@@ -1,6 +1,6 @@
 # 3jays
 
-Turn reference images into three.js scenes with Claude Code.
+Turn reference images into three.js scenes.
 
 3jays is a collection of agent skills and helper scripts. You give the agent a handful of images (photos, concept art, mood boards), and it analyzes them, writes a three.js scene that matches, and serves it on a local dev server so you can look at the result and ask for changes.
 
