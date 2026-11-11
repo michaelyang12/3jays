@@ -5,3 +5,5 @@ dist/
 
 scenes/*
 !scenes/example/
+scenes/*/shots/
+scenes/*/rounds/

@@ -12,10 +12,14 @@ export interface SceneView {
   position: THREE.Vector3Tuple
   target: THREE.Vector3Tuple
   fov?: number
+  near?: number
+  far?: number
+  aspect?: string
 }
 
 export interface SceneHandle {
   view?: SceneView
+  views?: Record<string, SceneView>
   update?: (dt: number, elapsed: number) => void
   render?: () => void
 }

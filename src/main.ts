@@ -57,7 +57,7 @@ function showError(message: string) {
   overlay.textContent = message
 }
 
-async function start(name: string) {
+async function start(name: string, viewId: string | null) {
   const load = scenes.get(name)
   if (!load) {
     showError(`Unknown scene "${name}".`)
@@ -73,10 +73,19 @@ async function start(name: string) {
   const ctx: SceneContext = { renderer, scene: new THREE.Scene(), camera, controls }
   const handle: SceneHandle = await (await load()).default(ctx)
 
-  frameCamera(ctx, handle.view)
+  const views = handle.views ?? {}
+  let view = handle.view
+  const setView = (id: string) => {
+    if (!views[id]) throw new Error(`Unknown view "${id}". Views: ${Object.keys(views).join(', ') || 'none'}`)
+    view = views[id]
+    frameCamera(ctx, view)
+  }
+  frameCamera(ctx, view)
+  if (viewId) setView(viewId)
   controls.update()
+  if (import.meta.env.DEV) Object.assign(window, { __3jays: { ...ctx, THREE, view: handle.view, views, setView } })
   window.addEventListener('keydown', (event) => {
-    if (event.key === 'r' && !event.metaKey && !event.ctrlKey) frameCamera(ctx, handle.view)
+    if (event.key === 'r' && !event.metaKey && !event.ctrlKey) frameCamera(ctx, view)
   })
 
   let last = performance.now()
@@ -100,6 +109,7 @@ window.addEventListener('error', (event) => showError(String(event.error ?? even
 window.addEventListener('unhandledrejection', (event) => showError(String(event.reason?.stack ?? event.reason)))
 resize()
 
-const name = new URLSearchParams(window.location.search).get('scene')
-if (name) start(name).catch((error) => showError(String(error?.stack ?? error)))
+const query = new URLSearchParams(window.location.search)
+const name = query.get('scene')
+if (name) start(name, query.get('view')).catch((error) => showError(String(error?.stack ?? error)))
 else showIndex()

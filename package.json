@@ -6,13 +6,18 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "score": "bun scripts/score.ts",
+    "shot": "bun scripts/shot.ts",
+    "restore": "bun scripts/restore.ts"
   },
   "dependencies": {
     "three": "^0.187.0"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.4",
     "@types/three": "^0.187.0",
+    "playwright-core": "^1.65.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.7"
   }
