@@ -39,6 +39,7 @@ Use `bun`/`bunx`, never `npm`/`npx`/`yarn`. The lockfile is `bun.lock`.
 | `src/framing.ts` | How the viewer positions the camera on load and on `R` |
 | `src/lib/` | Reusable scene helpers (lighting rigs, materials, procedural geometry). `layout.ts` is the rigid layout system for movable items; `bake.ts` caches slow procedural builders across reloads in dev |
 | `scenes/<name>/` | One generated scene: `refs/`, `brief.md`, `params.ts`, `scene.ts` (plus helper modules), `assets/`, `review-<n>.json` (pending reviews), `scores.json`, plus gitignored `shots/` (screenshots) and `rounds/r<N>/` (files saved by each scoring round; `rounds/pending/` is a review not yet scored) |
+| `scenes/<name>/layouts.md`, `decor/` | Optional: alternative furniture layouts of the scene (rules, layouts, tradeoffs) and the new pieces they add. `params.ts` exports `layoutSpec`; `original` is the scene as built and stays the default; others open with `?layout=<id>` |
 | `scenes/<name>/<section>/` | Optional section of a large scene (a closet, a bed): its own modules and params, built and reviewed on its own through views named `<section>-<id>` |
 
 ## Scene workflow

@@ -1,6 +1,6 @@
 # Layout system
 
-`src/lib/layout.ts` moves items rigidly: each one is turned about its own center and then shifted. Nothing is scaled, so no layout can change a size. `scenes/bedroom-redox` is the worked example; copy its `params.ts` (`footprints`, `layouts`, `layoutSpec`) and `scene.ts`.
+`src/lib/layout.ts` moves items rigidly: each one is turned about its own center and then shifted. Nothing is scaled, so no layout can change a size. `scenes/bedroom` and `scenes/114` are worked examples; copy a `params.ts` (`footprints`, `layouts`, `layoutSpec`) and `scene.ts`.
 
 ## The contract
 

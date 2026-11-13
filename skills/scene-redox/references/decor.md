@@ -5,7 +5,7 @@ New pieces go in `scenes/<name>/decor/`:
 - Builders grouped by theme in `decor/<theme>.ts`, with procedural textures in `decor/textures.ts`.
 - A registry in `decor/index.ts`.
 
-`scenes/bedroom-redox/decor/` is the worked example.
+`scenes/bedroom/decor/` and `scenes/114/decor/` are worked examples.
 
 ## Building a piece
 

@@ -55,7 +55,7 @@ To try a new arrangement of a scene you already have:
 Make a redox of the bedroom scene: keep the bed, move anything else, and make it cozier
 ```
 
-Each layout opens at `?scene=bedroom-redox&layout=<id>`.
+The layouts are added to the scene itself, next to its original arrangement (the default). Each opens at `?scene=bedroom&layout=<id>`, and the main page lists them under the scene.
 
 To run the viewer yourself:
 
@@ -83,7 +83,7 @@ Your scenes stay local: `scenes/` is gitignored except for the bundled samples.
 | Skill | What it does |
 |---|---|
 | [`scene-from-images`](skills/scene-from-images/SKILL.md) | Builds a scene from reference images: studies them, writes the brief and scene, has independent reviewers score it against the references, and iterates. Also handles continuing a scene and splitting one into sections built by subagents. |
-| [`scene-redox`](skills/scene-redox/SKILL.md) | Rearranges or redecorates an existing scene without resizing anything: forks it, makes every item movable, tries layouts with collision, clearance and floor-space checks, adds decor, and has reviewers judge the design. |
+| [`scene-redox`](skills/scene-redox/SKILL.md) | Rearranges or redecorates an existing scene without resizing anything: adds named layouts beside its original arrangement, makes every item movable, tries layouts with collision, clearance and floor-space checks, adds decor, and has reviewers judge the design. |
 
 ## Contributing
 

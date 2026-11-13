@@ -23,7 +23,7 @@ Keep these in mind throughout. Each comes from several scenes.
 
 1. Put the images in `scenes/<name>/refs/` (kebab-case name). Never alter the user's files there. If they are HEIC, write JPEG copies beside them, numbered in capture order: `sips -s format jpeg -Z 2048 IMG_1234.HEIC --out 01.jpg`.
 2. Record what the user said about scope before anything else: what to model, what to leave out (clutter, clothes on the floor, items on a dresser), anything they said about order or overlap between photos. For a scene with many objects, keep the keep-list and the omit-list in a small file in the scene folder (for example `core-items.json`) so builders and reviewers get the same lists. If the user gave no scope, decide, and write the decision in the brief.
-3. If the request is a variant of a scene that already exists (a new layout, a redecorated version), stop here and follow `skills/scene-redox/SKILL.md` instead.
+3. If the request is a variant of a scene that already exists (a new layout, a redecorated version), stop here and follow `skills/scene-redox/SKILL.md` instead. Its layouts live in the existing scene; don't make a new one.
 
 ## 2. Study the references
 
