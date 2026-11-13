@@ -9,7 +9,7 @@ import { pendingDir, snapshot } from './rounds'
 const DEV_URL = 'http://localhost:5173'
 const LONG_EDGE = 1200
 const DEFAULT_ASPECT = '16:9'
-const SETTLE_MS = 30_000
+const SETTLE_MS = Number(process.env.SHOT_TIMEOUT_MS ?? 30_000)
 const HERO = 'hero'
 export const REVIEW_FILE = /^review-\d+\.json$/
 
