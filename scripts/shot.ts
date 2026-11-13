@@ -34,6 +34,7 @@ export interface Capture {
 export interface Freeze {
   date: string
   section: string | null
+  layout?: string | null
   views: string[]
   screenshots: string[]
   gates: Record<string, boolean>
@@ -54,7 +55,7 @@ async function briefAspect(name: string) {
   return typeof aspect === 'string' ? aspect : DEFAULT_ASPECT
 }
 
-async function launch(): Promise<Browser> {
+export async function launch(): Promise<Browser> {
   const args = ['--enable-gpu', '--ignore-gpu-blocklist']
   if (process.platform === 'darwin') args.push('--use-angle=metal')
   try {
@@ -69,7 +70,7 @@ async function launch(): Promise<Browser> {
 }
 
 // `pick` chooses what to shoot once the scene has loaded and its view ids are known.
-export async function capture(name: string, pick: (views: string[]) => Shot[], longEdge = LONG_EDGE): Promise<Capture> {
+export async function capture(name: string, pick: (views: string[]) => Shot[], longEdge = LONG_EDGE, query: Record<string, string> = {}): Promise<Capture> {
   const reachable = await fetch(DEV_URL).then(() => true, () => false)
   if (!reachable) throw new Error(`no dev server at ${DEV_URL}: start \`bun run dev\` in the background first`)
 
@@ -91,7 +92,7 @@ export async function capture(name: string, pick: (views: string[]) => Shot[], l
         .then(() => true, () => false)
     const nextFrame = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 
-    await page.goto(`${DEV_URL}/?scene=${encodeURIComponent(name)}`)
+    await page.goto(`${DEV_URL}/?${new URLSearchParams({ scene: name, ...query })}`)
     let settled = await waitSettled()
     if (!settled && problems.some((problem) => problem.includes('Outdated Optimize Dep'))) {
       await page.reload()
@@ -135,7 +136,7 @@ async function runGate(script: string) {
 }
 
 // Copies the scene's files next to the screenshots reviewers will score, so `score` records exactly what was reviewed.
-export async function freeze(name: string, section: string | null, wanted: string[], longEdge = LONG_EDGE, clearReviews = true) {
+export async function freeze(name: string, section: string | null, wanted: string[], longEdge = LONG_EDGE, clearReviews = true, layout: string | null = null) {
   const dir = join('scenes', name)
   const target = pendingDir(dir)
   rmSync(target, { recursive: true, force: true })
@@ -152,10 +153,12 @@ export async function freeze(name: string, section: string | null, wanted: strin
       return picked.map((view) => ({ view, out: join(shots, `${view}.png`) }))
     },
     longEdge,
+    layout ? { layout } : {},
   )
   const record: Freeze = {
     date: new Date().toISOString(),
     section,
+    layout,
     views: result.saved.map((shot) => shot.view),
     screenshots: result.saved.map((shot) => shot.out),
     gates: {
@@ -168,6 +171,66 @@ export async function freeze(name: string, section: string | null, wanted: strin
   return { record, result, stale }
 }
 
+export interface Match {
+  view: string
+  changed: number
+  mean: number
+  diff: string
+}
+
+const MATCH_LIMIT = 0.01
+
+// Compares two screenshots in the browser: `changed` is the fraction of pixels whose largest
+// channel difference exceeds 24/255, and the diff image marks those pixels red over a dimmed copy.
+export async function compareShots(pairs: { view: string; a: string; b: string; diff: string }[]): Promise<Match[]> {
+  const browser = await launch()
+  try {
+    const page = await browser.newPage()
+    const matches: Match[] = []
+    for (const pair of pairs) {
+      const [a, b] = await Promise.all([pair.a, pair.b].map(async (path) => `data:image/png;base64,${Buffer.from(await Bun.file(path).arrayBuffer()).toString('base64')}`))
+      const result = await page.evaluate(async ({ a, b }) => {
+        const load = (src: string) =>
+          new Promise<HTMLImageElement>((done, error) => {
+            const image = new Image()
+            image.onload = () => done(image)
+            image.onerror = error
+            image.src = src
+          })
+        const [ia, ib] = await Promise.all([load(a), load(b)])
+        if (ia.width !== ib.width || ia.height !== ib.height) return { error: `sizes differ: ${ia.width}x${ia.height} vs ${ib.width}x${ib.height}` }
+        const canvas = Object.assign(document.createElement('canvas'), { width: ia.width, height: ia.height })
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(ia, 0, 0)
+        const da = ctx.getImageData(0, 0, ia.width, ia.height)
+        ctx.drawImage(ib, 0, 0)
+        const db = ctx.getImageData(0, 0, ia.width, ia.height)
+        let changed = 0
+        let sum = 0
+        for (let i = 0; i < da.data.length; i += 4) {
+          const d = Math.max(Math.abs(da.data[i] - db.data[i]), Math.abs(da.data[i + 1] - db.data[i + 1]), Math.abs(da.data[i + 2] - db.data[i + 2]))
+          sum += d
+          if (d > 24) {
+            changed++
+            da.data.set([255, 30, 30], i)
+          } else {
+            for (let c = 0; c < 3; c++) da.data[i + c] = da.data[i + c] * 0.35
+          }
+        }
+        ctx.putImageData(da, 0, 0)
+        const pixels = da.data.length / 4
+        return { changed: changed / pixels, mean: sum / pixels, diff: canvas.toDataURL('image/png') }
+      }, { a, b })
+      if ('error' in result) throw new Error(`view ${pair.view}: ${result.error}`)
+      await Bun.write(pair.diff, Buffer.from(result.diff.split(',')[1], 'base64'))
+      matches.push({ view: pair.view, changed: result.changed, mean: result.mean, diff: pair.diff })
+    }
+    return matches
+  } finally {
+    await browser.close()
+  }
+}
+
 function report(result: Capture) {
   for (const shot of result.saved) console.log(`saved ${shot.out} (${shot.viewport.width}x${shot.viewport.height}, view ${shot.view})`)
   console.log(`scene: ${result.status}`)
@@ -176,7 +239,7 @@ function report(result: Capture) {
 }
 
 if (import.meta.main) {
-  const usage = 'usage: bun run shot <scene> [--view <id,id> | --all | --section <name>] [--review] [--out <path>] [--long-edge <px>]'
+  const usage = 'usage: bun run shot <scene> [--view <id,id> | --all | --section <name>] [--layout <id>] [--match <scene>] [--review] [--out <path>] [--long-edge <px>]'
   const { values, positionals } = parseArgs({
     args: Bun.argv.slice(2),
     options: {
@@ -185,6 +248,8 @@ if (import.meta.main) {
       section: { type: 'string' },
       review: { type: 'boolean', default: false },
       out: { type: 'string' },
+      layout: { type: 'string' },
+      match: { type: 'string' },
       'long-edge': { type: 'string' },
     },
     allowPositionals: true,
@@ -195,10 +260,13 @@ if (import.meta.main) {
   const longEdge = Number(values['long-edge'] ?? LONG_EDGE)
   const wanted = values.view ? values.view.split(',').map((id) => id.trim()) : []
   const section = values.section ?? null
+  const layout = values.layout ?? null
+  const query: Record<string, string> = layout ? { layout } : {}
+  if (values.match && !existsSync(join('scenes', values.match, 'scene.ts'))) fail(`scenes/${values.match}/scene.ts not found`)
 
   if (values.review) {
-    if (values.out || values.all) fail('--review picks its own output paths and views; drop --out and --all')
-    const { record, result, stale } = await freeze(name, section, wanted, longEdge).catch((error: Error) => fail(error.message))
+    if (values.out || values.all || values.match) fail('--review picks its own output paths and views; drop --out, --all and --match')
+    const { record, result, stale } = await freeze(name, section, wanted, longEdge, true, layout).catch((error: Error) => fail(error.message))
     report(result)
     if (stale.length) console.log(`removed unscored ${stale.join(', ')} from an earlier review`)
     for (const [gate, passed] of Object.entries(record.gates)) console.log(`gate ${gate.padEnd(10)} ${passed ? 'pass' : 'FAIL'}`)
@@ -212,11 +280,33 @@ if (import.meta.main) {
         const picked = wanted.length ? wanted : values.all ? [HERO, ...views] : section ? views.filter((id) => id.startsWith(`${section}-`)) : [HERO]
         if (!picked.length) throw new Error(`no views start with "${section}-". Views: ${views.join(', ') || 'none'}`)
         if (values.out && picked.length > 1) throw new Error('--out takes one view; drop it to save each view under shots/')
-        return picked.map((view) => ({ view, out: values.out ?? join(shotsDir, view === HERO ? 'latest.png' : `${view}.png`) }))
+        const suffix = layout ? `@${layout}` : ''
+        return picked.map((view) => ({ view, out: values.out ?? join(shotsDir, `${view === HERO ? 'latest' : view}${suffix}.png`) }))
       },
       longEdge,
+      query,
     ).catch((error: Error) => fail(error.message))
     report(result)
     if (result.status !== 'ready' || result.problems.length) process.exit(1)
+
+    if (values.match) {
+      const source = values.match
+      const matchDir = join(shotsDir, 'match')
+      const reference = await capture(
+        source,
+        () => result.saved.map((shot) => ({ view: shot.view, out: join(matchDir, `${shot.view}@${source}.png`) })),
+        longEdge,
+      ).catch((error: Error) => fail(error.message))
+      if (reference.status !== 'ready') fail(`scene ${source}: ${reference.status}${reference.overlay ? `\n${reference.overlay}` : ''}`)
+      const pairs = result.saved.map((shot, i) => ({ view: shot.view, a: shot.out, b: reference.saved[i].out, diff: join(matchDir, `${shot.view}-diff.png`) }))
+      const matches = await compareShots(pairs).catch((error: Error) => fail(error.message))
+      for (const m of matches) {
+        console.log(`match ${m.view} vs ${source}: ${(m.changed * 100).toFixed(2)}% of pixels changed, mean difference ${m.mean.toFixed(2)}/255 (${m.diff})`)
+      }
+      if (matches.some((m) => m.changed > MATCH_LIMIT)) {
+        console.log(`more than ${MATCH_LIMIT * 100}% of pixels changed: open the diff images to see where`)
+        process.exit(1)
+      }
+    }
   }
 }

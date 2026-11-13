@@ -4,7 +4,7 @@ Turn reference images into three.js scenes.
 
 3jays is a collection of agent skills and helper scripts. You give the agent a handful of images (photos, concept art, mood boards), and it analyzes them, writes a three.js scene that matches, and serves it on a local dev server so you can look at the result and ask for changes.
 
-> Status: early development. The viewer runs today (`bun run dev`, then open `?scene=example`); the skills are still being written.
+> Status: early development. The viewer runs today (`bun run dev`, then open `?scene=example`), along with the screenshot and scoring scripts and the first skill.
 
 ## How it works
 
@@ -49,6 +49,14 @@ Make a scene called foggy-harbor from the images in scenes/foggy-harbor/refs
 
 Then open `http://localhost:5173/?scene=foggy-harbor`.
 
+To try a new arrangement of a scene you already have:
+
+```
+Make a redox of the bedroom scene: keep the bed, move anything else, and make it cozier
+```
+
+Each layout opens at `?scene=bedroom-redox&layout=<id>`.
+
 To run the viewer yourself:
 
 ```sh
@@ -56,6 +64,8 @@ bun run dev        # dev server with hot reload
 bun run build      # production build
 bun run typecheck  # type check
 ```
+
+In the viewer, drag to look around from where the camera stands and right-drag to slide sideways. W, A, S and D fly forward, left, back and right along the view, Shift rises and Control drops, and the scroll wheel moves forward and back. R returns to the scene's camera.
 
 ## Project layout
 
@@ -72,7 +82,8 @@ Your scenes stay local: `scenes/` is gitignored except for the bundled samples.
 
 | Skill | What it does |
 |---|---|
-| _coming soon_ | |
+| [`scene-from-images`](skills/scene-from-images/SKILL.md) | Builds a scene from reference images: studies them, writes the brief and scene, has independent reviewers score it against the references, and iterates. Also handles continuing a scene and splitting one into sections built by subagents. |
+| [`scene-redox`](skills/scene-redox/SKILL.md) | Rearranges or redecorates an existing scene without resizing anything: forks it, makes every item movable, tries layouts with collision, clearance and floor-space checks, adds decor, and has reviewers judge the design. |
 
 ## Contributing
 

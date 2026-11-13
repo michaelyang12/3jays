@@ -2,7 +2,9 @@
 
 3jays is a set of agent skills and helper scripts for turning reference images into three.js scenes. A user drops images into a scene folder, the agent analyzes them, writes the scene, and serves it from a local Vite dev server for viewing. Stack: Bun, Vite, TypeScript, three.js.
 
-Status: the viewer, commands, and scoring work; `skills/` and `.claude/skills` are planned. If a listed path doesn't exist yet, create it to match rather than inventing a different structure, and update this file when it lands.
+Status: the viewer, commands, scoring, and the `scene-from-images` and `scene-redox` skills work. If a listed path doesn't exist yet, create it to match rather than inventing a different structure, and update this file when it lands.
+
+To build or continue a scene, follow `skills/scene-from-images/SKILL.md`. To rearrange or redecorate an existing scene, follow `skills/scene-redox/SKILL.md`. The first covers the order of work, technique choices, and how to brief reviewers and builders; this file is the reference for commands, layout, and the scene contract.
 
 ## Commands
 
@@ -11,10 +13,13 @@ bun install
 bun run dev          # Vite dev server, http://localhost:5173/?scene=<name> (strictPort: fails if 5173 is taken)
 bun run build        # production build of the viewer and all scenes
 bun run typecheck    # tsc --noEmit
-bun run shot <name> [--view <id,id> | --all | --section <s>] [--out <path>]   # headless screenshots; exits 1 on load errors or console warnings
+bun run shot <name> [--view <id,id> | --all | --section <s>] [--layout <id>] [--out <path>]   # headless screenshots; exits 1 on load errors or console warnings
+bun run shot <name> --match <other>   # also shoot the same views of <other> and pixel-diff them (shots/match/); exits 1 above 1% changed
 bun run shot <name> --review [--section <s>]   # screenshots for reviewers, with the scene's files frozen beside them in rounds/pending/
 bun run score <name> --change "<what this round changed>"   # score the frozen review from review-<n>.json files (docs/scoring.md)
 bun run restore <name> <round> [--force]   # copy a scored round's files back over the scene
+bun run fork <source> <name>   # copy a scene without refs, shots, rounds, scores or reviews, for a variant
+bun run layout <name> [--layout <id,id>] [--svg]   # headless layout checks and floor metrics from params.ts `layoutSpec`; --svg writes shots/plan-<id>.png
 ```
 
 Before finishing any change, run: `bun run typecheck && bun run build`
@@ -29,10 +34,10 @@ Use `bun`/`bunx`, never `npm`/`npx`/`yarn`. The lockfile is `bun.lock`.
 | `.claude/skills` | Symlink to `skills/` so the skills load when an agent runs inside this repo |
 | `scripts/` | Helper tools the skills call. `score.ts` owns the scoring weights and completion threshold; `shot.ts` captures screenshots and console output |
 | `docs/scoring.md` | Scoring criteria, anchors, reviewer protocol |
-| `src/main.ts` | The shared viewer: owns the renderer, canvas, camera, OrbitControls, render loop, and scene loading |
+| `src/main.ts` | The shared viewer: owns the renderer, canvas, camera, OrbitControls, render loop, and scene loading. Drag looks around from the camera's position; WASD fly, Shift/Control up/down, wheel forward/back, R resets to the scene's view |
 | `src/types.ts` | The scene module contract |
 | `src/framing.ts` | How the viewer positions the camera on load and on `R` |
-| `src/lib/` | Reusable scene helpers (lighting rigs, materials, procedural geometry) |
+| `src/lib/` | Reusable scene helpers (lighting rigs, materials, procedural geometry). `layout.ts` is the rigid layout system for movable items; `bake.ts` caches slow procedural builders across reloads in dev |
 | `scenes/<name>/` | One generated scene: `refs/`, `brief.md`, `params.ts`, `scene.ts` (plus helper modules), `assets/`, `review-<n>.json` (pending reviews), `scores.json`, plus gitignored `shots/` (screenshots) and `rounds/r<N>/` (files saved by each scoring round; `rounds/pending/` is a review not yet scored) |
 | `scenes/<name>/<section>/` | Optional section of a large scene (a closet, a bed): its own modules and params, built and reviewed on its own through views named `<section>-<id>` |
 
@@ -54,7 +59,7 @@ Use `bun`/`bunx`, never `npm`/`npx`/`yarn`. The lockfile is `bun.lock`.
 
 ## Scene module contract
 
-Each `scene.ts` default-exports a `SceneFactory` (`src/types.ts`): it receives `{ renderer, scene, camera, controls }`, populates `scene`, and returns (or resolves to, for async asset loading) a handle with optional `view` (camera position, target, fov, and near/far clip planes for scenes larger than the default 0.1 to 1000 m), `views` (extra named cameras of the same shape, selected with `?view=<id>`), `update(dt, elapsed)`, and `render()` (replaces the default render call, for postprocessing). The viewer discovers scenes with `import.meta.glob('/scenes/*/scene.ts')`, so no registration step exists. Model new scenes on `scenes/example/scene.ts`.
+Each `scene.ts` default-exports a `SceneFactory` (`src/types.ts`): it receives `{ renderer, scene, camera, controls, query }` (`query` holds the page's URL parameters, for scene options such as `?layout=<id>`), populates `scene`, and returns (or resolves to, for async asset loading) a handle with optional `view` (camera position, target, fov, and near/far clip planes for scenes larger than the default 0.1 to 1000 m), `views` (extra named cameras of the same shape, selected with `?view=<id>`), `update(dt, elapsed)`, and `render()` (replaces the default render call, for postprocessing). The viewer discovers scenes with `import.meta.glob('/scenes/*/scene.ts')`, so no registration step exists. Model new scenes on `scenes/example/scene.ts`.
 
 ## Conventions
 
@@ -65,6 +70,7 @@ Each `scene.ts` default-exports a `SceneFactory` (`src/types.ts`): it receives `
 - Import addons from `three/addons/...`, not `three/examples/jsm/...`.
 - World units are meters. Set `colorSpace = THREE.SRGBColorSpace` on color textures; leave data textures (normal, roughness) linear.
 - Prefer procedural geometry and materials. Pull in external models or textures when the reference demands detail that procedural work can't reach (figurative carving, recognizable props), store them in `scenes/<name>/assets/`, and record source URL and license in `brief.md`. Never hotlink remote assets. Prefer CC0 sources (Poly Haven, ambientCG). Pack glTF into a single `.glb` (`bunx @gltf-transform/cli copy in.gltf out.glb`) and reference assets with `new URL('./assets/<file>', import.meta.url)` so the build bundles them.
+- Wrap a slow, deterministic builder (pixel-loop canvas textures, cloth or physics settling) with `baked(import.meta.url, '<name>', fn)` from `src/lib/bake.ts`. Its arguments must be plain data, and it may return plain data, typed arrays, or canvas textures. In dev the result is cached in IndexedDB and reused until the calling module or one of its local imports changes.
 - Scene-specific code stays in the scene folder. Promote something to `src/lib/` only once a second scene needs it.
 - Avoid code comments unless the flow is complex or you are leaving a TODO.
 - No emojis in code, docs, or commit messages.

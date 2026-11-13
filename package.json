@@ -9,7 +9,9 @@
     "typecheck": "tsc --noEmit",
     "score": "bun scripts/score.ts",
     "shot": "bun scripts/shot.ts",
-    "restore": "bun scripts/restore.ts"
+    "restore": "bun scripts/restore.ts",
+    "layout": "bun scripts/layout.ts",
+    "fork": "bun scripts/fork.ts"
   },
   "dependencies": {
     "three": "^0.187.0"
